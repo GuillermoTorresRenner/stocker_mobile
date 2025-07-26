@@ -1,77 +1,123 @@
-import { api } from "@/api/api";
-import { login, register } from "@/api/auth";
-import { createContext, useContext, useState } from "react";
-import * as SecureStore from "expo-secure-store";
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { storage } from '../utils/storage';
 
-interface AuthProps {
-  authState?: { token: string | null; authenticated: boolean };
-  onRegister?: (email: string, password: string) => Promise<any>;
-  onLogin?: (email: string, password: string) => Promise<any>;
-  onLogout?: () => Promise<any>;
+interface User {
+  id: string;
+  email: string;
+  name: string;
 }
 
-const TOKEN_KEY = "token";
-const AuthContext = createContext<AuthProps>({});
-1;
-export const useAuth = () => {
-  return useContext(AuthContext);
-};
+interface AuthContextType {
+  user: User | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  isInitialized: boolean;
+  onLogin: (email: string, password: string) => Promise<void>;
+  onLogout: () => Promise<void>;
+}
 
-export const AuthProvider = ({ children }: any) => {
-  const [authState, setAuthState] = useState<{
-    token: string | null;
-    authenticated: boolean | null;
-  }>({
-    token: null,
-    authenticated: null,
-  });
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-  useState(() => {
-    const loadToken = async () => {
-      const token = await SecureStore.getItemAsync(TOKEN_KEY);
-      if (token) {
-        setAuthState({ token, authenticated: true });
-        api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      } else {
-        setAuthState({ token: null, authenticated: false });
+const TOKEN_KEY = 'auth_token';
+const USER_KEY = 'auth_user';
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Cargar datos de autenticación al iniciar
+  useEffect(() => {
+    const loadAuthData = async () => {
+      try {
+        const [token, userData] = await Promise.all([
+          storage.getItem(TOKEN_KEY),
+          storage.getItem(USER_KEY)
+        ]);
+
+        if (token && userData) {
+          const parsedUser = JSON.parse(userData);
+          setUser(parsedUser);
+        }
+      } catch (error) {
+        console.error('Error loading auth data:', error);
+      } finally {
+        setIsInitialized(true);
       }
     };
 
-    loadToken();
+    loadAuthData();
   }, []);
 
-  const onRegister = async (email: string, password: string) => {
-    register(email, password);
-  };
-
-  const onLogin = async (email: string, password: string) => {
+  const onLogin = async (email: string, password: string): Promise<void> => {
+    setIsLoading(true);
     try {
-      const response = await login(email, password);
-      if (response?.data?.token) {
-        setAuthState({
-          token: response.data.token,
-          authenticated: true,
-        });
-        api.defaults.headers.common[
-          "Authorization"
-        ] = `Bearer ${response.data.token}`;
-        // Guarda el token de autenticación de forma segura
-        await SecureStore.setItemAsync(TOKEN_KEY, response.data.token);
-      }
-    } catch (error) {}
+      // Simular delay de red
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      // Simular autenticación exitosa
+      const mockUser: User = {
+        id: Date.now().toString(),
+        email: email,
+        name: email.split('@')[0]
+      };
+      
+      const mockToken = `token_${Date.now()}`;
+      
+      // Guardar en storage
+      await Promise.all([
+        storage.setItem(TOKEN_KEY, mockToken),
+        storage.setItem(USER_KEY, JSON.stringify(mockUser))
+      ]);
+      
+      setUser(mockUser);
+      console.log('Login exitoso:', mockUser);
+    } catch (error) {
+      console.error('Error en login:', error);
+      throw new Error('Credenciales incorrectas');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const onLogout = async () => {
-    SecureStore.deleteItemAsync(TOKEN_KEY);
-    api.defaults.headers.common["Authorization"] = "";
-    setAuthState({ token: null, authenticated: false });
+  const onLogout = async (): Promise<void> => {
+    setIsLoading(true);
+    try {
+      // Limpiar storage
+      await Promise.all([
+        storage.removeItem(TOKEN_KEY),
+        storage.removeItem(USER_KEY)
+      ]);
+      
+      setUser(null);
+      console.log('Logout exitoso');
+    } catch (error) {
+      console.error('Error during logout:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const value = {
-    onRegister,
+  const value: AuthContextType = {
+    user,
+    isAuthenticated: !!user,
+    isLoading,
+    isInitialized,
     onLogin,
     onLogout,
-    authState,
   };
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
 };

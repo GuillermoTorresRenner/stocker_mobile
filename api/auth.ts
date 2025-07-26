@@ -1,22 +1,31 @@
 import { api } from "./api";
 
-export const register = async (email: string, password: string) => {
-  try {
-    return await api.post("/auth/register", { email, password });
-  } catch (error) {
-    console.error("Registration error:", error);
-  }
-};
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  name?: string;
+}
+
 export const login = async (email: string, password: string) => {
-  try {
-    return await api.post("/auth/login", { email, password });
-  } catch (error) {
-    console.error("Registration error:", error);
-  }
+  const response = await api.post("/auth/login", { email, password });
+  return response;
 };
 
-export const logout = async () => {
-  // Implement logout logic here
-  // Clear the token and authenticated state
+export const googlelogin = async () => {
+  const response = await api.get("/auth/google");
+  return response;
 };
-1;
+
+export const register = async (
+  email: string,
+  password: string,
+  name?: string
+) => {
+  const response = await api.post("/auth/register", { email, password, name });
+  return response;
+};

@@ -1,7 +1,9 @@
+import { useAuth } from "@/contexts/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
+  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -17,18 +19,37 @@ import {
   Spacing,
   Typography,
 } from "../../constants/mainTheme";
-import { useAuth } from "@/contexts/AuthContext";
 
 const LoginScreen = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const { onLogin } = useAuth();
+  const { onLogin, isLoading } = useAuth();
 
-  const handleLogin = () => {
-    onLogin(email, password);
-    // Redirigir a tabs después del login
-    router.replace("/(tabs)");
+  const handleLogin = async () => {
+    // Validaciones básicas
+    if (!email.trim()) {
+      Alert.alert("Error", "El email es requerido");
+      return;
+    }
+
+    if (!password.trim()) {
+      Alert.alert("Error", "La contraseña es requerida");
+      return;
+    }
+
+    if (!onLogin) {
+      Alert.alert("Error", "Servicio de autenticación no disponible");
+      return;
+    }
+
+    try {
+      await onLogin(email, password);
+      // No necesitamos redirigir manualmente, AuthGuard se encarga
+    } catch (error) {
+      Alert.alert("Error", "Credenciales incorrectas");
+      console.log(error);
+    }
   };
 
   const handleGoogleLogin = () => {
@@ -77,6 +98,7 @@ const LoginScreen = () => {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
+              editable={!isLoading}
             />
           </View>
 
@@ -96,10 +118,12 @@ const LoginScreen = () => {
               onChangeText={setPassword}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
+              editable={!isLoading}
             />
             <TouchableOpacity
               onPress={() => setShowPassword(!showPassword)}
               style={styles.eyeIcon}
+              disabled={isLoading}
             >
               <Ionicons
                 name={showPassword ? "eye-outline" : "eye-off-outline"}
@@ -110,16 +134,22 @@ const LoginScreen = () => {
           </View>
 
           {/* Forgot Password */}
-          <TouchableOpacity style={styles.forgotPassword}>
+          <TouchableOpacity style={styles.forgotPassword} disabled={isLoading}>
             <Text style={CommonStyles.link}>¿Olvidaste tu contraseña?</Text>
           </TouchableOpacity>
 
           {/* Login Button */}
           <TouchableOpacity
-            style={CommonStyles.primaryButton}
+            style={[
+              CommonStyles.primaryButton,
+              isLoading && styles.disabledButton,
+            ]}
             onPress={handleLogin}
+            disabled={isLoading}
           >
-            <Text style={CommonStyles.buttonText}>Iniciar Sesión</Text>
+            <Text style={CommonStyles.buttonText}>
+              {isLoading ? "Iniciando sesión..." : "Iniciar Sesión"}
+            </Text>
           </TouchableOpacity>
 
           {/* Divider */}
@@ -131,8 +161,12 @@ const LoginScreen = () => {
 
           {/* Google Login Button */}
           <TouchableOpacity
-            style={CommonStyles.outlineButton}
+            style={[
+              CommonStyles.outlineButton,
+              isLoading && styles.disabledButton,
+            ]}
             onPress={handleGoogleLogin}
+            disabled={isLoading}
           >
             <Ionicons
               name="logo-google"
@@ -148,7 +182,7 @@ const LoginScreen = () => {
           {/* Register Link */}
           <View style={CommonStyles.row}>
             <Text style={styles.registerText}>¿No tienes una cuenta? </Text>
-            <TouchableOpacity onPress={goToRegister}>
+            <TouchableOpacity onPress={goToRegister} disabled={isLoading}>
               <Text style={CommonStyles.link}>Regístrate</Text>
             </TouchableOpacity>
           </View>
@@ -182,6 +216,9 @@ const styles = StyleSheet.create({
   registerText: {
     color: Colors.textSecondary,
     fontSize: Typography.fontSize.sm,
+  },
+  disabledButton: {
+    opacity: 0.6,
   },
 });
 
