@@ -1,5 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
+import * as Google from "expo-auth-session/providers/google";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -21,6 +22,10 @@ import {
 } from "../../constants/mainTheme";
 
 const LoginScreen = () => {
+  const [request, response, promptAsync] = Google.useAuthRequest({
+    androidClientId:
+      "656055098982-trs1m0n7vu8uafc130ei3dcgqm03gp5k.apps.googleusercontent.com",
+  });
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -46,14 +51,18 @@ const LoginScreen = () => {
     try {
       await onLogin(email, password);
       // No necesitamos redirigir manualmente, AuthGuard se encarga
-    } catch (error) {
-      Alert.alert("Error", "Credenciales incorrectas");
-      console.log(error);
+    } catch (error: any) {
+      Alert.alert("Error", error.message || "Error al iniciar sesión");
     }
   };
 
-  const handleGoogleLogin = () => {
-    // Lógica de Google login
+  const handleGoogleLogin = async () => {
+    try {
+      await promptAsync();
+    } catch (error) {
+      console.log(error);
+      Alert.alert("Error", "Error al iniciar sesión con Google");
+    }
   };
 
   const goToRegister = () => {

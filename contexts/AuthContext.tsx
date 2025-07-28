@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { storage } from '../utils/storage';
+import React, { createContext, useContext, useEffect, useState } from "react";
+import { api } from "../api/api";
+import { login as apiLogin } from "../api/auth";
+import { storage } from "../utils/storage";
 
 interface User {
   id: string;
@@ -18,10 +20,12 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const TOKEN_KEY = 'auth_token';
-const USER_KEY = 'auth_user';
+const TOKEN_KEY = "auth_token";
+const USER_KEY = "auth_user";
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -32,15 +36,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       try {
         const [token, userData] = await Promise.all([
           storage.getItem(TOKEN_KEY),
-          storage.getItem(USER_KEY)
+          storage.getItem(USER_KEY),
         ]);
 
         if (token && userData) {
           const parsedUser = JSON.parse(userData);
           setUser(parsedUser);
+          // Configurar el header de autorización
+          api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
         }
       } catch (error) {
-        console.error('Error loading auth data:', error);
+        console.error("Error loading auth data:", error);
       } finally {
         setIsInitialized(true);
       }
@@ -52,29 +58,60 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const onLogin = async (email: string, password: string): Promise<void> => {
     setIsLoading(true);
     try {
-      // Simular delay de red
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // Simular autenticación exitosa
-      const mockUser: User = {
-        id: Date.now().toString(),
-        email: email,
-        name: email.split('@')[0]
+      // Llamar a la API real
+      const response = await apiLogin(email, password);
+
+      // Verificar que la respuesta contenga los datos necesarios
+      if (!response.data || !response.data.token) {
+        throw new Error("Respuesta de login inválida");
+      }
+
+      const { token, user: userData } = response.data;
+
+      // Crear objeto de usuario
+      const user: User = {
+        id: userData.id || Date.now().toString(),
+        email: userData.email || email,
+        name: userData.name || userData.username || email.split("@")[0],
       };
-      
-      const mockToken = `token_${Date.now()}`;
-      
+
+      // Configurar header de autorización
+      api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
       // Guardar en storage
       await Promise.all([
-        storage.setItem(TOKEN_KEY, mockToken),
-        storage.setItem(USER_KEY, JSON.stringify(mockUser))
+        storage.setItem(TOKEN_KEY, token),
+        storage.setItem(USER_KEY, JSON.stringify(user)),
       ]);
-      
-      setUser(mockUser);
-      console.log('Login exitoso:', mockUser);
-    } catch (error) {
-      console.error('Error en login:', error);
-      throw new Error('Credenciales incorrectas');
+
+      setUser(user);
+    } catch (error: any) {
+      console.error("Error en login:", error);
+
+      // Determinar el mensaje de error apropiado
+      let errorMessage = "Error de conexión";
+
+      if (error.response) {
+        // Error de la API
+        const status = error.response.status;
+        if (status === 401) {
+          errorMessage = "Credenciales incorrectas";
+        } else if (status === 400) {
+          errorMessage = "Datos inválidos";
+        } else if (status >= 500) {
+          errorMessage = "Error del servidor";
+        } else {
+          errorMessage = error.response.data?.message || "Error desconocido";
+        }
+      } else if (
+        error.code === "NETWORK_ERROR" ||
+        error.message.includes("Network Error")
+      ) {
+        errorMessage =
+          "No se puede conectar al servidor. Verifica tu conexión.";
+      }
+
+      throw new Error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -83,16 +120,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const onLogout = async (): Promise<void> => {
     setIsLoading(true);
     try {
+      // Limpiar header de autorización
+      api.defaults.headers.common["Authorization"] = "";
+
       // Limpiar storage
       await Promise.all([
         storage.removeItem(TOKEN_KEY),
-        storage.removeItem(USER_KEY)
+        storage.removeItem(USER_KEY),
       ]);
-      
+
       setUser(null);
-      console.log('Logout exitoso');
     } catch (error) {
-      console.error('Error during logout:', error);
+      console.error("Error during logout:", error);
     } finally {
       setIsLoading(false);
     }
@@ -107,17 +146,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     onLogout,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };

@@ -18,13 +18,6 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
     const inAuthGroup = segments[0] === "(auth)";
     const inTabsGroup = segments[0] === "(tabs)";
 
-    console.log("AuthGuard:", {
-      isAuthenticated,
-      segments,
-      inAuthGroup,
-      inTabsGroup,
-    });
-
     if (isAuthenticated) {
       // Usuario autenticado
       if (inAuthGroup) {

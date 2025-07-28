@@ -11,13 +11,24 @@ export interface RegisterRequest {
   name?: string;
 }
 
-export const login = async (email: string, password: string) => {
-  const response = await api.post("/auth/login", { email, password });
-  return response;
-};
+export interface AuthResponse {
+  token: string;
+  user: {
+    id: string;
+    email: string;
+    name?: string;
+    username?: string;
+  };
+}
 
-export const googlelogin = async () => {
-  const response = await api.get("/auth/google");
+export const login = async (
+  email: string,
+  password: string
+): Promise<{ data: AuthResponse }> => {
+  const response = await api.post<AuthResponse>("/auth/login", {
+    email,
+    password,
+  });
   return response;
 };
 
@@ -25,7 +36,11 @@ export const register = async (
   email: string,
   password: string,
   name?: string
-) => {
-  const response = await api.post("/auth/register", { email, password, name });
+): Promise<{ data: AuthResponse }> => {
+  const response = await api.post<AuthResponse>("/auth/register", {
+    email,
+    password,
+    name,
+  });
   return response;
 };
